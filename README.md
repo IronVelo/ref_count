@@ -1,5 +1,7 @@
 # ref_count
 
+[![CI](https://github.com/IronVelo/ref_count/actions/workflows/ci.yml/badge.svg)](https://github.com/IronVelo/ref_count/actions/workflows/ci.yml)
+
 `ref_count` is a high-performance, robust, `no_std`, `no_alloc`, async reference counting crate designed for Rust 
 environments that require efficiency and low overhead. It leverages core futures and core wakers, alongside a lock-free 
 queue, to manage synchronization without blocking or spinning, making it ideal for use in embedded systems, real-time 
@@ -12,7 +14,7 @@ applications, or any scenario where dynamic memory allocation and standard libra
                   exclusive references, verified with `loom` among other measures.
 - **`no_std` and `no_alloc`**: Works in `no_std` environments without requiring dynamic memory allocation.
 - **Asynchronous**: Utilizes futures and wakers from the core library to handle waiting without blocking or spinning.
-- **Exclusive References**: Supports exclusive references, allowing for the creation of higher level primitives such as 
+- **Exclusive References**: Supports exclusive references, allowing for the creation of higher-level primitives such as 
                             readers-writer locks. 
 - **Fair**: Taking advantage of a lock-free queue, priority inversion and starvation are prevented.
 - **Environment Agnostic**: From seL4 to Linux, this crate was designed to not care. This also applies to async 
