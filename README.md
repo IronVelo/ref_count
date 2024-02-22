@@ -1,6 +1,6 @@
 # ref_count
 
-[![CI](https://github.com/IronVelo/ref_count/actions/workflows/ci.yml/badge.svg)](https://github.com/IronVelo/ref_count/actions/workflows/ci.yml)
+[![CI](https://github.com/IronVelo/ref_count/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/IronVelo/ref_count/actions/workflows/ci.yml)
 
 `ref_count` is a high-performance, robust, `no_std`, `no_alloc`, async reference counting crate designed for Rust 
 environments that require efficiency and low overhead. It leverages core futures and core wakers, alongside a lock-free 
