@@ -24,7 +24,7 @@ Add `ref_count` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-ref_count = "0.1.0"
+ref_count = "0.1.1"
 ```
 
 ## Example Usage 
