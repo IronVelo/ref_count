@@ -8,7 +8,12 @@ categories = ["concurrency", "asynchronous", "no-std::no-alloc", "no-std"]
 description = "Efficient, low-level asynchronous synchronization for real-time and embedded systems"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
-
+repository = "https://github.com/IronVelo/ref_count"
+include = [
+    "**/*.rs",
+    "Cargo.toml",
+    "README.md"
+]
 
 [features]
 alloc = []
