@@ -20,6 +20,9 @@ macro_rules! ordering {
 
 #[cfg(loom)]
 macro_rules! atomic {
+    (bool, $value:expr) => {
+        ::loom::sync::atomic::AtomicBool::new($value)
+    };
     (u8, $value:expr) => {
         ::loom::sync::atomic::AtomicU8::new($value)
     };
@@ -45,6 +48,9 @@ macro_rules! atomic {
 
 #[cfg(not(loom))]
 macro_rules! atomic {
+    (bool, $value:expr) => {
+        ::core::sync::atomic::AtomicBool::new($value)
+    };
     (u8, $value:expr) => {
         ::core::sync::atomic::AtomicU8::new($value)
     };

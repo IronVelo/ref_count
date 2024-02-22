@@ -1,5 +1,6 @@
 //! Wrapper for `Waker`
 use core::task::Waker;
+use core::ptr::NonNull;
 
 /// # Waiter
 ///
@@ -10,15 +11,19 @@ pub struct Waiter {
     /// The core waiter for the future
     waker: Waker,
     /// A mutable pointer telling the future if it is currently registered in the queue
-    registered: *mut bool
+    registered: NonNull<atomic!(AtomicBool, ty)>
 }
 
 impl Waiter {
-    #[inline]
-    pub fn new(waker: Waker, registered: &mut bool) -> Self {
+    /// # Safety
+    ///
+    /// The registered bool must live for the lifetime of the future. This means you must not
+    /// register the future if `Ready`.
+    #[inline] #[must_use]
+    pub unsafe fn new(waker: Waker, registered: &mut atomic!(AtomicBool, ty)) -> Self {
         Self {
             waker,
-            registered: registered as *mut bool
+            registered: unsafe { NonNull::new_unchecked(registered as *mut _) }
         }
     }
 
@@ -27,9 +32,7 @@ impl Waiter {
     /// Update the futures registered flag, which the future should be able to access on next
     /// poll.
     pub fn set_registered(&self, is_registered: bool) {
-        if !self.registered.is_null() {
-            unsafe { self.registered.write(is_registered) };
-        }
+        unsafe { self.registered.as_ref().store(is_registered, ordering!(Release)) }
     }
 
     /// # Wake Future

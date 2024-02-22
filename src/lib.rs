@@ -1,6 +1,6 @@
 #![doc = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md"))]
 #![cfg_attr(not(feature = "std"), no_std)]
-#![no_builtins]
+#![cfg_attr(not(loom), no_builtins)]
 #![warn(
     clippy::all,
     clippy::nursery,
@@ -33,78 +33,6 @@ use pad::CacheLine;
 use backoff::Backoff;
 use futures::MaybeFuture;
 
-/// # Reference State
-///
-/// Denoting whether references can take place or are blocked.
-///
-/// # Variants
-///
-/// - `Blocked`: References must wait, there is currently an exclusive reference or a request for
-///              one.
-/// - `Allowed`: References can take place.
-///
-/// # Example
-///
-/// ```
-/// use ref_count::{RefCount, State};
-/// let ref_count = RefCount::<32>::new();
-///
-/// // state() returns this.
-/// assert!(ref_count.state().is_allowed());
-///
-/// let exclusive = ref_count.try_get_exclusive_ref().unwrap();
-/// assert!(ref_count.state().is_blocked());
-/// ```
-#[repr(u32)]
-pub enum State {
-    Blocked = 1,
-    Allowed = 0
-}
-
-impl State {
-    #[inline] #[must_use]
-    pub const fn from_raw(state: u32) -> Self {
-        // SAFETY:
-        // With the mask, the value can only be 0 or 1, which are the two possible values for the
-        // enums discriminant. The state and the enum are both represented as an unsigned 32-bit
-        // integers. The usage of transmute here is documented in the block_state macro as well as
-        // the mask constant to ensure modifications of these do not yield UB in the future.
-        unsafe { core::mem::transmute(block_state!(state)) }
-    }
-
-    /// Returns true if references were allowed when the [`State`] was constructed.
-    #[inline] #[must_use]
-    pub const fn is_allowed(&self) -> bool {
-        matches!(self, Self::Allowed)
-    }
-
-    /// Returns true if references were blocked when the [`State`] was constructed.
-    #[inline] #[must_use]
-    pub const fn is_blocked(&self) -> bool {
-        matches!(self, Self::Blocked)
-    }
-}
-
-macro_rules! __state_format {
-    ($state:ident, $formatter:ident) => {
-        match $state {
-            Self::Allowed => $formatter.write_str("allowed"),
-            Self::Blocked => $formatter.write_str("blocked")
-        }
-    };
-}
-
-impl Display for State {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        __state_format!(self, f)
-    }
-}
-
-impl Debug for State {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        __state_format!(self, f)
-    }
-}
 
 /// # Maybe Await
 ///
@@ -205,12 +133,12 @@ impl<const MAX_WAITING: usize> RefCount<MAX_WAITING> {
     ///
     /// ```
     /// # let ref_count = ref_count::RefCount::<32>::new();
-    /// let reference = ref_count.try_get_ref().unwrap();
+    /// let reference = ref_count.blocking_get_ref();
     /// assert_eq!(ref_count.ref_count(), 1);
     ///
     /// drop(reference);
     ///
-    /// let exclusive = ref_count.try_get_exclusive_ref().unwrap();
+    /// let exclusive = ref_count.blocking_get_exclusive_ref();
     /// assert_eq!(ref_count.ref_count(), 1);
     /// ```
     ///
@@ -230,13 +158,13 @@ impl<const MAX_WAITING: usize> RefCount<MAX_WAITING> {
     ///
     /// ```
     /// # let ref_count = ref_count::RefCount::<32>::new();
-    /// let reference = ref_count.try_get_ref().unwrap();
+    /// let reference = ref_count.blocking_get_ref();
     /// assert!(!ref_count.no_refs());
     ///
     /// drop(reference);
     /// assert!(ref_count.no_refs());
     ///
-    /// let exclusive = ref_count.try_get_exclusive_ref().unwrap();
+    /// let exclusive = ref_count.blocking_get_exclusive_ref();
     /// assert!(!ref_count.no_refs());
     /// ```
     ///
@@ -256,12 +184,12 @@ impl<const MAX_WAITING: usize> RefCount<MAX_WAITING> {
     ///
     /// ```
     /// # let ref_count = ref_count::RefCount::<32>::new();
-    /// let reference = ref_count.try_get_ref().unwrap();
+    /// let reference = ref_count.blocking_get_ref();
     /// assert_eq!(ref_count.standard_ref_count(), 1);
     ///
     /// drop(reference);
     ///
-    /// let exclusive = ref_count.try_get_exclusive_ref().unwrap();
+    /// let exclusive = ref_count.blocking_get_exclusive_ref();
     /// assert_eq!(ref_count.standard_ref_count(), 0); // as doesn't include exclusive refs.
     /// ```
     ///
@@ -281,13 +209,13 @@ impl<const MAX_WAITING: usize> RefCount<MAX_WAITING> {
     ///
     /// ```
     /// # let ref_count = ref_count::RefCount::<32>::new();
-    /// let reference = ref_count.try_get_ref().unwrap();
+    /// let reference = ref_count.blocking_get_ref();
     /// assert!(!ref_count.no_standard_refs());
     ///
     /// drop(reference);
     /// assert!(ref_count.no_standard_refs());
     ///
-    /// let exclusive = ref_count.try_get_exclusive_ref().unwrap();
+    /// let exclusive = ref_count.blocking_get_exclusive_ref();
     /// assert!(ref_count.no_standard_refs()); // as doesn't consider exclusive refs.
     /// assert!(!ref_count.no_refs()); // although this does.
     /// ```
@@ -309,7 +237,7 @@ impl<const MAX_WAITING: usize> RefCount<MAX_WAITING> {
     /// # let ref_count = RefCount::<32>::new();
     /// assert_eq!(ref_count.raw_state(), 0);
     ///
-    /// let exclusive = ref_count.try_get_exclusive_ref().unwrap();
+    /// let exclusive = ref_count.blocking_get_exclusive_ref();
     /// assert_eq!(ref_count.raw_state(), 1);
     /// ```
     #[inline] #[must_use]
@@ -328,7 +256,7 @@ impl<const MAX_WAITING: usize> RefCount<MAX_WAITING> {
     /// # let ref_count = RefCount::<32>::new();
     /// assert_eq!(ref_count.is_blocked(), false);
     ///
-    /// let exclusive = ref_count.try_get_exclusive_ref().unwrap();
+    /// let exclusive = ref_count.blocking_get_exclusive_ref();
     /// assert_eq!(ref_count.is_blocked(), true);
     /// ```
     #[inline] #[must_use]
@@ -347,7 +275,7 @@ impl<const MAX_WAITING: usize> RefCount<MAX_WAITING> {
     /// # let ref_count = RefCount::<32>::new();
     /// assert_eq!(ref_count.is_allowed(), true);
     ///
-    /// let exclusive = ref_count.try_get_exclusive_ref().unwrap();
+    /// let exclusive = ref_count.blocking_get_exclusive_ref();
     /// assert_eq!(ref_count.is_allowed(), false);
     /// ```
     #[inline] #[must_use]
@@ -366,7 +294,7 @@ impl<const MAX_WAITING: usize> RefCount<MAX_WAITING> {
     /// # let ref_count = RefCount::<32>::new();
     /// assert!(ref_count.state().is_allowed());
     ///
-    /// let exclusive = ref_count.try_get_exclusive_ref().unwrap();
+    /// let exclusive = ref_count.blocking_get_exclusive_ref();
     /// assert!(ref_count.state().is_blocked());
     /// ```
     #[inline] #[must_use]
@@ -503,7 +431,7 @@ impl<const MAX_WAITING: usize> RefCount<MAX_WAITING> {
     /// // this allows for race conditions
     /// unsafe { ref_count.unblock_refs() };
     ///
-    /// let exclusive = ref_count.try_get_exclusive_ref().unwrap();
+    /// let exclusive = ref_count.blocking_get_exclusive_ref();
     /// // even though we are holding the block, it would be released twice, allowing
     /// // for race conditions again.
     /// unsafe { ref_count.unblock_refs() };
@@ -587,8 +515,10 @@ impl<const MAX_WAITING: usize> RefCount<MAX_WAITING> {
     /// # use ref_count::RefCount;
     /// let ref_count = RefCount::<32>::new();
     /// assert!(ref_count.state().is_allowed());
-    ///
+    /// # #[cfg(not(miri))]
     /// let exclusive = ref_count.try_get_exclusive_ref().unwrap();
+    /// # #[cfg(miri)]
+    /// # let exclusive = ref_count.blocking_get_exclusive_ref();
     /// assert!(ref_count.state().is_blocked());
     ///
     /// assert!(ref_count.try_get_ref().is_none());
@@ -596,8 +526,10 @@ impl<const MAX_WAITING: usize> RefCount<MAX_WAITING> {
     ///
     /// drop(exclusive);
     /// assert!(ref_count.state().is_allowed());
-    ///
+    /// # #[cfg(not(miri))]
     /// let _a_ref = ref_count.try_get_ref().unwrap();
+    /// # #[cfg(miri)]
+    /// # let _a_ref = ref_count.blocking_get_ref();
     /// assert!(ref_count.try_get_exclusive_ref().is_none());
     /// ```
     pub fn try_get_exclusive_ref(&self) -> Option<ExclusiveRef<MAX_WAITING>> {
@@ -972,6 +904,79 @@ impl<'count, const MAX_WAITING: usize> Drop for ExclusiveRef<'count, MAX_WAITING
         unsafe {
             self.src.unblock_refs();
         }
+    }
+}
+
+/// # Reference State
+///
+/// Denoting whether references can take place or are blocked.
+///
+/// # Variants
+///
+/// - `Blocked`: References must wait, there is currently an exclusive reference or a request for
+///              one.
+/// - `Allowed`: References can take place.
+///
+/// # Example
+///
+/// ```
+/// use ref_count::{RefCount, State};
+/// let ref_count = RefCount::<32>::new();
+///
+/// // state() returns this.
+/// assert!(ref_count.state().is_allowed());
+///
+/// let exclusive = ref_count.blocking_get_exclusive_ref();
+/// assert!(ref_count.state().is_blocked());
+/// ```
+#[repr(u32)]
+pub enum State {
+    Blocked = 1,
+    Allowed = 0
+}
+
+impl State {
+    #[inline] #[must_use]
+    pub const fn from_raw(state: u32) -> Self {
+        // SAFETY:
+        // With the mask, the value can only be 0 or 1, which are the two possible values for the
+        // enums discriminant. The state and the enum are both represented as an unsigned 32-bit
+        // integers. The usage of transmute here is documented in the block_state macro as well as
+        // the mask constant to ensure modifications of these do not yield UB in the future.
+        unsafe { core::mem::transmute(block_state!(state)) }
+    }
+
+    /// Returns true if references were allowed when the [`State`] was constructed.
+    #[inline] #[must_use]
+    pub const fn is_allowed(&self) -> bool {
+        matches!(self, Self::Allowed)
+    }
+
+    /// Returns true if references were blocked when the [`State`] was constructed.
+    #[inline] #[must_use]
+    pub const fn is_blocked(&self) -> bool {
+        matches!(self, Self::Blocked)
+    }
+}
+
+macro_rules! __state_format {
+    ($state:ident, $formatter:ident) => {
+        match $state {
+            Self::Allowed => $formatter.write_str("allowed"),
+            Self::Blocked => $formatter.write_str("blocked")
+        }
+    };
+}
+
+impl Display for State {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        __state_format!(self, f)
+    }
+}
+
+impl Debug for State {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        __state_format!(self, f)
     }
 }
 

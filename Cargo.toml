@@ -1,9 +1,9 @@
 [package]
 name = "ref_count"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["Clelland Green <cg@ironvelo.com>"]
-keywords = ["no_std", "no_alloc", "non-blocking", "embedded"]
+keywords = ["no_std", "no_alloc", "non-blocking", "embedded", "sync"]
 categories = ["concurrency", "asynchronous", "no-std::no-alloc", "no-std"]
 description = "Efficient, low-level asynchronous synchronization for real-time and embedded systems"
 readme = "README.md"

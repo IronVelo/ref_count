@@ -38,9 +38,9 @@ pub enum MaybeFuture<R, F: Future<Output = R>> {
 
 macro_rules! try_register_future {
     ($registered:expr, $queue:expr, $context:ident) => {
-        if !$registered {
-            match $queue.push(Waiter::new($context.waker().clone(), &mut $registered)) {
-                Ok(()) => $registered = true,
+        if !$registered.load(ordering!(Acquire)) {
+            match $queue.push(unsafe { Waiter::new($context.waker().clone(), &mut $registered) }) {
+                Ok(()) => $registered.store(true, ordering!(Relaxed)),
                 Err(waker) => waker.wake()
             };
         }
@@ -49,15 +49,25 @@ macro_rules! try_register_future {
 
 pub struct FutureRef<'count, const MAX_WAITING: usize> {
     pub src: &'count RefCount<MAX_WAITING>,
-    registered: bool
+    registered: atomic!(AtomicBool, ty)
 }
 
 impl<'count, const MAX_WAITING: usize> FutureRef<'count, MAX_WAITING> {
     #[must_use]
+    #[cfg(not(loom))]
     pub const fn new(counter: &'count RefCount<MAX_WAITING>) -> Self {
         Self {
             src: counter,
-            registered: false
+            registered: atomic!(bool, false)
+        }
+    }
+
+    #[must_use]
+    #[cfg(loom)]
+    pub fn new(counter: &'count RefCount<MAX_WAITING>) -> Self {
+        Self {
+            src: counter,
+            registered: atomic!(bool, false)
         }
     }
 }
@@ -84,15 +94,25 @@ impl<'count, const MAX_WAITING: usize> Future for FutureRef<'count, MAX_WAITING>
 
 pub struct FutureBlockedRefs<'count, const MAX_WAITING: usize> {
     pub src: &'count RefCount<MAX_WAITING>,
-    registered: bool
+    registered: atomic!(AtomicBool, ty)
 }
 
 impl<'count, const MAX_WAITING: usize> FutureBlockedRefs<'count, MAX_WAITING> {
     #[inline]
+    #[cfg(not(loom))]
     pub const fn new(count: &'count RefCount<MAX_WAITING>) -> Self {
         Self {
             src: count,
-            registered: false
+            registered: atomic!(bool, false)
+        }
+    }
+
+    #[inline]
+    #[cfg(loom)]
+    pub fn new(count: &'count RefCount<MAX_WAITING>) -> Self {
+        Self {
+            src: count,
+            registered: atomic!(bool, false)
         }
     }
 }
