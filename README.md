@@ -53,7 +53,7 @@ struct WriteGuard<'lock, T> {
 }
 
 impl<T> RwLock<T> {
-    fn new(t: T) {
+    fn new(t: T) -> Self {
         Self {
             data: UnsafeCell::new(t),
             state: RefCount::new()
