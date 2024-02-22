@@ -1,0 +1,39 @@
+[package]
+name = "ref_count"
+version = "0.1.0"
+edition = "2021"
+authors = ["Clelland Green <cg@ironvelo.com>"]
+keywords = ["no_std", "no_alloc", "non-blocking", "embedded"]
+categories = ["concurrency", "asynchronous", "no-std::no-alloc", "no-std"]
+description = "Efficient, low-level asynchronous synchronization for real-time and embedded systems"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+
+
+[features]
+alloc = []
+std = []
+
+[dependencies]
+
+[dev-dependencies]
+criterion = "0.5.1"
+crossbeam-utils = "0.8.19"
+rand = "0.8"
+tokio = {version = "1.36.0", features = ["sync"]}
+
+[target.'cfg(loom)'.dependencies]
+loom = { version = "0.7.1", features = ["futures", "checkpoint"] }
+
+[profile.release]
+lto = true
+opt-level = 3
+
+[[bench]]
+name = "get_ref"
+harness = false
+
+[package.metadata.docs.rs]
+all-features = true
+targets = ["x86_64-unknown-linux-gnu"]
+rustdoc-args = ["--cfg", "doc_cfg", "--generate-link-to-definition"]
